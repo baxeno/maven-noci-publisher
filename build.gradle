@@ -1,0 +1,100 @@
+apply plugin: "groovy"
+apply plugin: "maven-publish"
+apply from: 'deps.gradle'
+
+// buildscript section is special as it's parsed very early by Gradle.
+buildscript {
+  ext {
+    art_user = project.hasProperty('artifactory_user') ? project.artifactory_user : System.getenv()['ARTIFACTORY_USER']
+    art_pass = project.hasProperty('artifactory_password') ? project.artifactory_password : System.getenv()['ARTIFACTORY_KEY']
+    art_url = project.hasProperty('artifactory_contextUrl') ? project.artifactory_contextUrl : System.getenv()['ARTIFACTORY_URL']
+  }
+  repositories {
+    jcenter()
+  }
+  dependencies {
+    // Check for the latest version here: http://plugins.gradle.org/plugin/com.jfrog.artifactory
+    classpath "org.jfrog.buildinfo:build-info-extractor-gradle:4+"
+  }
+}
+
+allprojects {
+  apply plugin: "com.jfrog.artifactory"
+}
+
+artifactory {
+  // The base Artifactory URL if not overridden by the publisher/resolver
+  contextUrl = art_url
+  clientConfig.setIncludeEnvVars(true)
+  clientConfig.setEnvVarsExcludePatterns('ARTIFACTORY_*,*password*,*secret*')
+  publish {
+    repository {
+      repoKey = "${publishRepo}"
+      username = art_user
+      password = art_pass
+      maven = true
+    }
+    defaults {
+      properties = ['publisher': "${userPublisher}"]
+      publications("${publicationType}")
+    }
+  }
+  resolve {
+    repository {
+      repoKey = 'maven-release-virtual'
+      username = art_user
+      password = art_pass
+      maven = true
+    }
+  }
+}
+
+task getDeps(type:Copy) {
+  inputs.dir 'compile'
+  outputs.dir 'dependencies'
+  from configurations.compile
+    into 'compile'
+}
+
+task unzipDeps(dependsOn:['getDeps']) {
+  doLast {
+    configurations.compile.resolvedConfiguration.resolvedArtifacts.each { artifact ->
+      copy {
+        from zipTree( artifact.getFile() )
+        into 'dependencies'
+      }
+    }
+  }
+}
+
+task fileRelease(type:Zip, dependsOn:['unzipDeps']) {
+  baseName "${repoName}"
+  from ('.') {
+    include ("${existingArtifactOne}", "${existingArtifactTwo}")
+  }
+}
+
+def getResolvedVersionOf(dependency) {
+  return configurations.compile.resolvedConfiguration.firstLevelModuleDependencies.findAll { it.moduleName == dependency }[0].moduleVersion
+}
+
+// Maven POM generation
+publishing {
+  publications {
+    nociPublication(MavenPublication) {
+      artifact fileRelease
+      groupId "${group}"
+      artifactId "${repoName}"
+      pom.withXml {
+        def dependenciesNode = asNode().appendNode('dependencies')
+        //Iterate over the compile dependencies (we don't want the test ones), adding a <dependency> node for each
+        configurations.compile.allDependencies.each {
+          def dependencyNode = dependenciesNode.appendNode('dependency')
+            dependencyNode.appendNode('groupId', it.group)
+            dependencyNode.appendNode('artifactId', it.name)
+            dependencyNode.appendNode('version', getResolvedVersionOf(it.name))
+        }
+      }
+    }
+  }
+}
