@@ -1,3 +1,15 @@
+# General ignores
+*.bin
+*.hex
+*.tar.xz
+*.tar.gz
+*.tar.bz2
+*.zip
+
+# Gradle
 .gradle/
 build/
+
+# Auto generated
+gradle.properties
 
