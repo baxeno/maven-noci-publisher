@@ -1,6 +1,9 @@
 # maven-noci-publisher
 
 This tool make it possible to publish Maven artifacts into [Artifactory](https://jfrog.com/artifactory/) using [Gradle](https://gradle.org/) without a [Jenkins](https://jenkins.io/) CI pipeline.
+The following use cases can be solved:
+1. When transitioning an organization or a company into a continues delivery model where legacy components and products still need maintenance with infrequent releases in an old workflow, ex. no pipeline as code, no git source management (SVN, CVS), no artifact management, manual test, etc.
+1. 3rd party components are needed in a pipeline, but they are not released in a binary repository, ex. source code releases of OpenSSL, cURL, Linux kernel, etc.
 
 ## Requirements
 
